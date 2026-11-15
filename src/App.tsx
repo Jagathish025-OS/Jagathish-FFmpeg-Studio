@@ -15,7 +15,7 @@ export default function App(){
  const multi=['merge','batch','slideshow'].includes(tool);
  const add=(list:FileList|null)=>{if(!list)return;setFiles(p=>multi?[...p,...Array.from(list)]:Array.from(list).slice(0,1));setOutputs([]);setError('')};
  const runLargeFile=async()=>{
-  const api=(import.meta.env.VITE_LARGE_FILE_API_URL||'').replace(/\\/$/,'');
+  const api=(import.meta.env.VITE_LARGE_FILE_API_URL||'').replace(/\/$/,'');
   if(!api)throw new Error('Large-file processing is not connected yet. The large-file API must be deployed and VITE_LARGE_FILE_API_URL configured in Render.');
   if(files.length!==1||multi)throw new Error('The large-file engine currently supports one input file per job. Multi-file merge, slideshow and batch will be added in a later upgrade.');
   const file=files[0];
