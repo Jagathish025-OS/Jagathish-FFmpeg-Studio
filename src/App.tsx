@@ -34,10 +34,9 @@ export default function App(){
    const status=await statusResponse.json();setProgress(40+Math.round((status.progress||0)*0.6));
    if(status.status==='failed')throw new Error(status.error||'Large-file processing failed.');
    if(status.status==='completed'){
-    const download=await fetch(api+'/api/jobs/'+uploadId+'/download');
-    if(!download.ok)throw new Error('The output is ready but could not be downloaded.');
-    const blob=await download.blob();
-    setOutputs([{url:URL.createObjectURL(blob),name:'jagathish-'+tool+'.'+(tool==='gif'?'gif':tool==='thumbnail'?'jpg':format),size:blob.size}]);
+    // Use a direct download URL so multi-gigabyte outputs stream to the browser
+    // instead of being copied into a second in-memory Blob.
+    setOutputs([{url:api+'/api/jobs/'+uploadId+'/download',name:'jagathish-'+tool+'.'+(tool==='gif'?'gif':tool==='thumbnail'?'jpg':format),size:status.outputSize||0}]);
     setProgress(100);return;
    }
   }
