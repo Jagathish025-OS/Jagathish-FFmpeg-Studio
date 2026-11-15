@@ -2,6 +2,7 @@ name: Build Windows desktop app
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags:
       - 'desktop-v*'
 jobs:
