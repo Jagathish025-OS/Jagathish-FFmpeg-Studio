@@ -10,13 +10,46 @@ export default function App(){
  const selected=tools.find(t=>t[0]===tool)!;
  const multi=['merge','batch','slideshow'].includes(tool);
  const add=(list:FileList|null)=>{if(!list)return;setFiles(p=>multi?[...p,...Array.from(list)]:Array.from(list).slice(0,1));setOutputs([]);setError('')};
+ const runLargeFile=async()=>{
+  const api=(import.meta.env.VITE_LARGE_FILE_API_URL||'').replace(/\\/$/,'');
+  if(!api)throw new Error('Large-file processing is not connected yet. The large-file API must be deployed and VITE_LARGE_FILE_API_URL configured in Render.');
+  if(files.length!==1||multi)throw new Error('The large-file engine currently supports one input file per job. Multi-file merge, slideshow and batch will be added in a later upgrade.');
+  const file=files[0];
+  const init=await fetch(api+'/api/uploads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:file.name})});
+  if(!init.ok)throw new Error('Could not start large-file upload: '+(await init.text()));
+  const {uploadId,chunkBytes}=await init.json();
+  for(let offset=0;offset<file.size;){
+   const end=Math.min(file.size,offset+chunkBytes);
+   const response=await fetch(api+'/api/uploads/'+uploadId,{method:'PATCH',headers:{'Content-Type':'application/octet-stream','Upload-Offset':String(offset)},body:file.slice(offset,end)});
+   if(!response.ok)throw new Error('Upload failed at '+(offset/1048576).toFixed(0)+' MB: '+(await response.text()));
+   offset=end;setProgress(Math.round(offset/file.size*40));
+   logLarge('Uploaded '+(offset/1048576).toFixed(0)+' / '+(file.size/1048576).toFixed(0)+' MB');
+  }
+  const started=await fetch(api+'/api/jobs/'+uploadId,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tool,start,end,format,quality,speed,width,height,watermark})});
+  if(!started.ok)throw new Error('Could not start FFmpeg job: '+(await started.text()));
+  while(true){
+   await new Promise(resolve=>setTimeout(resolve,1800));
+   const statusResponse=await fetch(api+'/api/jobs/'+uploadId);
+   if(!statusResponse.ok)throw new Error('Could not read processing status: '+(await statusResponse.text()));
+   const status=await statusResponse.json();setProgress(40+Math.round((status.progress||0)*0.6));
+   if(status.status==='failed')throw new Error(status.error||'Large-file processing failed.');
+   if(status.status==='completed'){
+    const download=await fetch(api+'/api/jobs/'+uploadId+'/download');
+    if(!download.ok)throw new Error('The output is ready but could not be downloaded.');
+    const blob=await download.blob();
+    setOutputs([{url:URL.createObjectURL(blob),name:'jagathish-'+tool+'.'+(tool==='gif'?'gif':tool==='thumbnail'?'jpg':format),size:blob.size}]);
+    setProgress(100);return;
+   }
+  }
+ };
+ const logLarge=(message:string)=>setLogs(p=>[...p.slice(-5),message]);
  const run=async()=>{
   if(!files.length){setError('Choose a file first.');return}
   if(multi&&files.length<2){setError('Choose at least two files.');return}
   const totalBytes=files.reduce((sum,file)=>sum+file.size,0);
   if(totalBytes>MAX_TOTAL_INPUT_BYTES){
-   const totalMB=(totalBytes/1048576).toFixed(0);
-   setError('These files total '+totalMB+' MB. Browser FFmpeg currently supports up to 256 MB of input per job because files must be loaded into WebAssembly memory. Please use a smaller file or split the video into smaller parts. Large files are not uploaded to a server.');
+   setBusy(true);setError('');setOutputs([]);setProgress(0);setLogs([]);
+   try{await runLargeFile()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}
    return;
   }
   setBusy(true);setError('');setOutputs([]);setProgress(0);setLogs([]);
