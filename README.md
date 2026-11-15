@@ -34,3 +34,20 @@ Video compressor, video cutter, video converter, audio converter, video-to-GIF, 
 ## Deployment under /ffmpeg/
 
 The Vite base path is already set to `/ffmpeg/`. Build with `npm run build` and publish `dist/` at the matching path.
+## Windows desktop application (native FFmpeg)
+
+The repository also includes an Electron desktop edition. Unlike the browser edition, the desktop edition uses a bundled native FFmpeg executable and reads/writes media directly on the local disk. Large files are not copied into WebAssembly memory and are not uploaded to a server.
+
+### Run the desktop app in development
+```bash
+npm install
+npm run desktop:dev
+```
+
+### Build a Windows installer
+```bash
+npm run desktop:dist
+```
+The NSIS installer is generated in `release/`. A GitHub Actions workflow builds the Windows installer on pushes to `main`; download its artifact from the repository's Actions page after the run completes.
+
+See [electron/README.md](electron/README.md) for details. The web site remains browser-based; the desktop installer is a separate deliverable.
