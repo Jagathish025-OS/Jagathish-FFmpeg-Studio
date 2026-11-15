@@ -25,7 +25,7 @@ export default function App(){
    offset=end;setProgress(Math.round(offset/file.size*40));
    logLarge('Uploaded '+(offset/1048576).toFixed(0)+' / '+(file.size/1048576).toFixed(0)+' MB');
   }
-  const started=await fetch(api+'/api/jobs/'+uploadId,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tool,start,end,format,quality,speed,width,height,watermark})});
+  const started=await fetch(api+'/api/jobs/'+uploadId,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tool,start,end,format:tool==='audioCut'||tool==='extract'?'mp3':tool==='gif'?'gif':tool==='thumbnail'?'jpg':format,quality,speed,width,height,watermark})});
   if(!started.ok)throw new Error('Could not start FFmpeg job: '+(await started.text()));
   while(true){
    await new Promise(resolve=>setTimeout(resolve,1800));
