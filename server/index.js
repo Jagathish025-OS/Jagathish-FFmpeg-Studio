@@ -70,7 +70,9 @@ function buildArgs(tool, input, output, options) {
   if (tool === 'cut' || tool === 'audioCut') {
     args.push('-ss', start); addInput();
     const duration = Math.max(0.1, timeSeconds(end) - timeSeconds(start));
-    args.push('-t', String(duration), '-c', 'copy');
+    args.push('-t', String(duration));
+    if (tool === 'audioCut') args.push('-vn', '-c:a', 'libmp3lame', '-q:a', '2');
+    else args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-c:a', 'aac');
   } else if (tool === 'compress') {
     addInput(); args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(clamp(options.quality, 18, 35, 25)), '-c:a', 'aac');
   } else if (tool === 'convert' || tool === 'audio') {
