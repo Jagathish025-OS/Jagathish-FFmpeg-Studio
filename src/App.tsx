@@ -3,6 +3,8 @@ import {getEngine,fetchFile} from './ffmpeg';
 const tools=[
 ['compress','Video compressor','Video','Reduce MP4 size'],['cut','Video cutter','Video','Trim a clip by time'],['convert','Video converter','Video','Convert video formats'],['audio','Audio converter','Audio','Convert audio formats'],['gif','Video to GIF','Video','Create an animated GIF'],['extract','Extract audio','Audio','Save soundtrack as MP3'],['merge','Video merger','Video','Join compatible clips'],['audioCut','Audio cutter','Audio','Trim an audio track'],['subtitle','Subtitle editor','Subtitles','Burn an SRT file into video'],['watermark','Watermark editor','Video','Overlay text on video'],['batch','Batch processing','Advanced','Convert multiple files'],['thumbnail','Thumbnail generator','Images','Extract a still frame'],['speed','Video speed changer','Video','Change playback speed'],['crop','Video cropper','Video','Crop to a chosen size'],['slideshow','Image slideshow','Images','Create a video from images']];
 const exts=['mp4','webm','mov','mkv','mp3','wav','aac','ogg'];
+// FFmpeg.wasm buffers input files in WebAssembly memory. Keep browser jobs bounded.
+const MAX_TOTAL_INPUT_BYTES=256*1024*1024;
 export default function App(){
  const [tool,setTool]=useState('compress'),[files,setFiles]=useState<File[]>([]),[extra,setExtra]=useState<File|null>(null),[start,setStart]=useState('00:00:00'),[end,setEnd]=useState('00:00:15'),[format,setFormat]=useState('mp4'),[quality,setQuality]=useState('25'),[speed,setSpeed]=useState('1.5'),[watermark,setWatermark]=useState('Jagathish.online'),[width,setWidth]=useState('1280'),[height,setHeight]=useState('720'),[busy,setBusy]=useState(false),[progress,setProgress]=useState(0),[logs,setLogs]=useState<string[]>([]),[error,setError]=useState(''),[outputs,setOutputs]=useState<{url:string,name:string,size:number}[]>([]);
  const selected=tools.find(t=>t[0]===tool)!;
@@ -11,6 +13,12 @@ export default function App(){
  const run=async()=>{
   if(!files.length){setError('Choose a file first.');return}
   if(multi&&files.length<2){setError('Choose at least two files.');return}
+  const totalBytes=files.reduce((sum,file)=>sum+file.size,0);
+  if(totalBytes>MAX_TOTAL_INPUT_BYTES){
+   const totalMB=(totalBytes/1048576).toFixed(0);
+   setError('These files total '+totalMB+' MB. Browser FFmpeg currently supports up to 256 MB of input per job because files must be loaded into WebAssembly memory. Please use a smaller file or split the video into smaller parts. Large files are not uploaded to a server.');
+   return;
+  }
   setBusy(true);setError('');setOutputs([]);setProgress(0);setLogs([]);
   const log=(s:string)=>setLogs(p=>[...p.slice(-5),s]);
   try{
@@ -18,7 +26,7 @@ export default function App(){
    const safe=(s:string)=>s.replace(/[^a-z0-9._-]/gi,'_');
    if(tool==='merge'||tool==='slideshow'){
     const names:string[]=[];
-    for(let i=0;i<files.length;i++){const n='input_'+i+'.'+(tool==='slideshow'?'jpg':(files[i].name.split('.').pop()||'mp4'));names.push(n);await ff.writeFile(n,await fetchFile(files[i]));}
+    for(let i=0;i<files.length;i++){const n='input_'+i+'.'+(tool==='slideshow'?'jpg':(files[i].name.split('.').pop()||'mp4'));names.push(n);log('Reading '+files[i].name+' ('+(files[i].size/1048576).toFixed(1)+' MB)…');await ff.writeFile(n,await fetchFile(files[i]));}
     const list=tool==='merge'?'join.txt':'slides.txt';
     const body=tool==='merge'?names.map(n=>"file '"+n+"'").join('\n'):names.map(n=>"file '"+n+"'\nduration 2").join('\n')+"\nfile '"+names[names.length-1]+"'";
     await ff.writeFile(list,new TextEncoder().encode(body));
@@ -28,7 +36,7 @@ export default function App(){
     for(const n of [...names,list,out])await ff.deleteFile(n).catch(()=>{});
    }else{
     for(let i=0;i<files.length;i++){
-     const f=files[i],input='input_'+i+'.'+(f.name.split('.').pop()||'dat');await ff.writeFile(input,await fetchFile(f));
+     const f=files[i],input='input_'+i+'.'+(f.name.split('.').pop()||'dat');log('Reading '+f.name+' ('+(f.size/1048576).toFixed(1)+' MB) into browser memory…');await ff.writeFile(input,await fetchFile(f));
      let ext=tool==='gif'?'gif':tool==='thumbnail'?'jpg':tool==='extract'?'mp3':tool==='audio'||tool==='audioCut'?'mp3':tool==='subtitle'||tool==='watermark'||tool==='speed'||tool==='crop'||tool==='compress'||tool==='cut'?'mp4':format;
      const out='output_'+i+'.'+ext;let args:string[]=['-y'];
      if(tool==='compress')args.push('-i',input,'-c:v','libx264','-crf',quality,'-preset','ultrafast','-c:a','aac');
