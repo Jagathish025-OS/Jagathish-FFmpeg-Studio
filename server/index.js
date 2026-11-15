@@ -119,10 +119,10 @@ app.post('/api/jobs/:id', async (req, res) => {
     const tool = String(req.body?.tool || '');
     const format = String(req.body?.format || (tool === 'gif' ? 'gif' : tool === 'thumbnail' ? 'jpg' : 'mp4'));
     const output = path.join(jobDir(id), `output.${format}`);
+    const args = buildArgs(tool, inputPath(id), output, { ...req.body, format });
     const job = { id, status: 'processing', progress: 0, error: '', output, filename: `jagathish-${tool}.${format}`, size: stat.size, sourceName: meta.filename };
     jobs.set(id, job);
     res.status(202).json({ id, status: job.status });
-    const args = buildArgs(tool, inputPath(id), output, { ...req.body, format });
     const child = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
     child.stdout.setEncoding('utf8');
